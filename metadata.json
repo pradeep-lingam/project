@@ -1,0 +1,5 @@
+{
+  "name": "Bharat Linguist",
+  "description": "A comprehensive AI-powered translation tool for Indian languages, featuring text and image (OCR) translation using Google Gemini.",
+  "requestFramePermissions": []
+}
