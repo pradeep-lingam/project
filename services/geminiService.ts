@@ -20,7 +20,6 @@ export const translateContent = async (
 
   try {
     // 1. Image Translation/Transliteration (using gemini-2.5-flash-image)
-    // Note: Schema validation is not supported for this model, so we prompt for JSON text.
     if (imageBase64) {
       const taskInstruction = mode === 'transliterate'
         ? `Transliterate any text found into ${targetLanguage} script. Keep the original pronunciation and words, just convert the script. Do NOT translate the meaning.`
@@ -103,6 +102,33 @@ export const translateContent = async (
 
   } catch (error) {
     console.error("Gemini API error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Generates audio from text using the TTS model.
+ */
+export const generateSpeech = async (text: string): Promise<string> => {
+  if (!text.trim()) return "";
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
+        },
+      },
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
+  } catch (error) {
+    console.error("Speech generation error:", error);
     throw error;
   }
 };
