@@ -11,6 +11,14 @@ export enum IndianLanguage {
   Urdu = 'Urdu',
 }
 
+export enum TranslationContext {
+  Casual = 'casual',
+  Formal = 'formal',
+  Professional = 'professional',
+  Emotional = 'emotional',
+  Healthcare = 'healthcare',
+}
+
 export interface TranslationResult {
   text: string;
   detectedSourceLanguage?: string;

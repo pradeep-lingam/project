@@ -1,117 +1,163 @@
-import { GoogleGenAI, Type, LiveServerMessage, Modality } from "@google/genai";
-import { IndianLanguage, TranslationResult } from "../types";
-import { createPcmBlob, decodeAudioData, base64ToUint8Array } from "../utils/audioUtils";
+import { GoogleGenAI, Type, Modality, LiveServerMessage } from "@google/genai";
+import { IndianLanguage, TranslationResult, TranslationContext } from "../types";
+import { decode, encode, decodeAudioData, createPcmBlob } from "../utils/audioUtils";
 
-// Ensure API Key is present
-const API_KEY = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const INTERPRETER_SYSTEM_INSTRUCTION = `You are a world-class multilingual interpreter specializing in Indian languages. Your primary goal is "Intent-First Interpretation."
 
-/**
- * Translates or Transliterates text/image content.
- */
+STRICT TRANSLATION RULES:
+1. MEANING OVER WORDS: Identify the underlying intent and translate it into natural, fluent target language.
+2. PROPER NOUNS & BRANDS: Names of people (e.g., 'Amit'), places (e.g., 'Mumbai'), brands (e.g., 'Google', 'WhatsApp', 'Apple'), and specific technical/medical terms MUST be transliterated phonetically into the target script. NEVER translate their literal meaning.
+3. NUMBERS & PUNCTUATION: Preserve all numbers (e.g., '123', '50.5%') and punctuation (e.g., '!', '?', '-', '.') exactly as they appear in the original text.
+4. NATIVE PHRASING: Output must sound like a native speaker using the target script. Avoid robotic or literal phrasing.
+
+SILENT VERIFICATION PROTOCOL:
+Before finalizing:
+- CHECK 1: Is the original meaning preserved?
+- CHECK 2: Is the phrasing natural for a native speaker?
+- CHECK 3: Are proper nouns, brands, and technical terms phonetically transliterated rather than translated?
+- CHECK 4: Are all numbers and punctuation preserved exactly?
+If any check fails, rewrite the translation once. Output ONLY the final JSON result.
+
+OUTPUT FORMAT:
+Return a JSON object: {"translation": "...", "detectedSourceLanguage": "..."}`;
+
+const TRANSLITERATOR_SYSTEM_INSTRUCTION = `You are a professional linguistic transliteration engine.
+Your task is transliteration, NOT translation.
+
+Rules:
+- DO NOT TRANSLATE. DO NOT REPHRASE. DO NOT SUMMARIZE.
+- Convert pronunciation from the source into the target script phonetically.
+- CODE-MIXED INPUT: If the input is code-mixed, transliterate EACH word into the target script based on its pronunciation, without translating its meaning.
+- TAMIL CONVENTIONS: For Tamil target script, strictly adhere to modern spoken Tamil transliteration conventions. Ensure that the written Tamil accurately represents the sounds in common parlance (e.g., handling the nuances of plosives being voiced or unvoiced correctly).
+- Maintain original word order exactly.
+- NAMES, BRANDS, & PLACES: Names of people, places, and brands MUST be transliterated phonetically, NOT translated.
+- ENGLISH WORDS: If the source contains English words, transliterate them phonetically into the target script. Do NOT translate them into the target language's equivalent words.
+- NUMBERS & PUNCTUATION: Preserve all numbers and punctuation marks exactly as they are in the original text.
+- DO NOT add explanations or extra text.
+
+SILENT VERIFICATION PROTOCOL:
+Before finalizing, verify:
+- No translation has occurred (meanings must not be swapped for equivalents).
+- Pronunciation is accurate for a native speaker of the target language.
+- Modern spoken conventions (especially for Tamil) are followed.
+- Proper nouns and brands are preserved phonetically.
+- Numbers and punctuation are untouched.
+If incorrect, fix once. Output ONLY the final result.`;
+
 export const translateContent = async (
   targetLanguage: IndianLanguage | 'English',
   sourceLanguage: string,
   text?: string,
   imageBase64?: string,
-  mode: 'translate' | 'transliterate' = 'translate'
+  mode: 'translate' | 'transliterate' = 'translate',
+  context: TranslationContext = TranslationContext.Casual
 ): Promise<TranslationResult> => {
   if (!text && !imageBase64) return { text: "" };
 
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const modelName = 'gemini-3-flash-preview';
+
   try {
-    // 1. Image Translation/Transliteration (using gemini-2.5-flash-image)
-    if (imageBase64) {
-      const taskInstruction = mode === 'transliterate'
-        ? `Transliterate any text found into ${targetLanguage} script. Keep the original pronunciation and words, just convert the script. Do NOT translate the meaning.`
-        : `Translate it into ${targetLanguage}.`;
+    const commonSchema = {
+      type: Type.OBJECT,
+      properties: {
+        translation: { type: Type.STRING },
+        detectedSourceLanguage: { type: Type.STRING }
+      },
+      required: ["translation", "detectedSourceLanguage"]
+    };
 
-      const parts: any[] = [
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: imageBase64
-          }
-        },
-        {
-          text: `Analyze this image. Detect the language of any text found. ${taskInstruction}
-                 If there is no text, describe the image in ${targetLanguage}.
-                 Return the result in the following JSON format:
-                 { "translation": "THE_RESULT_TEXT", "detectedSourceLanguage": "THE_DETECTED_LANGUAGE" }`
-        }
-      ];
+    if (mode === 'transliterate') {
+      const transliteratePrompt = `Task: Transliterate the text below phonetically into ${targetLanguage} script.
 
-      if (text) {
-        parts.push({ text: `Additional Context: ${text}` });
-      }
+Source language/script: ${sourceLanguage}
+Target language/script: ${targetLanguage}
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts },
-        config: { responseMimeType: 'application/json' }
-      });
+Text:
+"${text || "Content from image"}"
 
-      const rawText = response.text || "{}";
-      try {
-        const json = JSON.parse(rawText);
-        return {
-          text: json.translation || "Processing failed.",
-          detectedSourceLanguage: json.detectedSourceLanguage
-        };
-      } catch (e) {
-        return { text: rawText };
-      }
-    } 
-    
-    // 2. Text-only Translation/Transliteration (using gemini-3-flash-preview)
-    else if (text) {
-      const sourcePrompt = sourceLanguage === 'Auto-detect' 
-        ? "Detect the language of the text." 
-        : `The source language is ${sourceLanguage}.`;
+IMPORTANT:
+- Do not translate meaning.
+- If the target is Tamil, use modern spoken Tamil transliteration conventions.
+- If the input is code-mixed, transliterate each word into ${targetLanguage} script based on pronunciation, without translating meaning.
+- If the source contains English words, transliterate them phonetically. Do NOT translate them.
+- Names of people, places, and brands must be transliterated phonetically, not translated.
+- Preserve numbers and punctuation exactly as in the original text.
+- Output ONLY the phonetic transliteration.`;
 
-      let taskPrompt = "";
-      if (mode === 'transliterate') {
-        taskPrompt = `Transliterate the text into ${targetLanguage} script. Strictly preserve the sound and words of the original text. Do NOT translate the meaning. Example: "Namaste" -> "नमस्ते".`;
-      } else {
-        taskPrompt = `Translate the following text to ${targetLanguage}.`;
-      }
+      const contents = imageBase64 
+        ? { parts: [{ inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }, { text: transliteratePrompt }] }
+        : transliteratePrompt;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `${sourcePrompt} ${taskPrompt} \n\nText: "${text}"`,
+        model: modelName,
+        contents,
         config: {
+          systemInstruction: TRANSLITERATOR_SYSTEM_INSTRUCTION,
           responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              translation: { type: Type.STRING },
-              detectedSourceLanguage: { type: Type.STRING }
-            },
-            required: ["translation", "detectedSourceLanguage"]
-          }
+          responseSchema: commonSchema
         },
       });
 
       const result = JSON.parse(response.text || "{}");
-      return {
-        text: result.translation || "Processing failed.",
-        detectedSourceLanguage: result.detectedSourceLanguage
-      };
+      return { text: result.translation, detectedSourceLanguage: result.detectedSourceLanguage };
+    }
+
+    // Translation Path
+    if (imageBase64) {
+      const prompt = `Translate image text to ${targetLanguage} (${context} tone). 
+      Names of people, places, and brands MUST be transliterated phonetically, not translated.
+      Preserve all numbers and punctuation exactly as in the original image.
+      Use meaning-based translation for everything else.`;
+
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: {
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+            { text: prompt }
+          ]
+        },
+        config: { 
+          systemInstruction: INTERPRETER_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: commonSchema
+        }
+      });
+
+      const json = JSON.parse(response.text || "{}");
+      return { text: json.translation, detectedSourceLanguage: json.detectedSourceLanguage };
+    } 
+    
+    else if (text) {
+      const prompt = `Translate to ${targetLanguage} (Context: ${context}): "${text}". 
+      Names of people, places, and brands MUST be transliterated phonetically, not translated.
+      Preserve all numbers and punctuation exactly as in the source.
+      Mixed language input should result in pure target language output while preserving proper nouns phonetically.`;
+
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: {
+          systemInstruction: INTERPRETER_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: commonSchema
+        },
+      });
+
+      const result = JSON.parse(response.text || "{}");
+      return { text: result.translation, detectedSourceLanguage: result.detectedSourceLanguage };
     }
 
     return { text: "" };
-
-  } catch (error) {
-    console.error("Gemini API error:", error);
+  } catch (error: any) {
     throw error;
   }
 };
 
-/**
- * Generates audio from text using the TTS model.
- */
 export const generateSpeech = async (text: string): Promise<string> => {
   if (!text.trim()) return "";
-  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
@@ -120,159 +166,93 @@ export const generateSpeech = async (text: string): Promise<string> => {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
+            prebuiltVoiceConfig: { voiceName: 'Kore' }
           },
         },
       },
     });
-
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || "";
   } catch (error) {
-    console.error("Speech generation error:", error);
-    throw error;
+    throw new Error("Audio generation failed.");
   }
 };
 
-/**
- * Manages the Live API session for real-time interpretation.
- */
 export class LiveSessionManager {
-  private inputContext: AudioContext | null = null;
-  private outputContext: AudioContext | null = null;
-  private mediaStream: MediaStream | null = null;
-  private currentSessionPromise: Promise<any> | null = null;
+  private session: any = null;
+  private inputAudioContext: AudioContext | null = null;
+  private outputAudioContext: AudioContext | null = null;
+  private stream: MediaStream | null = null;
   private nextStartTime = 0;
   private sources = new Set<AudioBufferSourceNode>();
 
   public onInputAudio: ((analyser: AnalyserNode) => void) | null = null;
   public onOutputAudio: ((analyser: AnalyserNode) => void) | null = null;
-  public onError: ((error: string) => void) | null = null;
+  public onError: ((err: string) => void) | null = null;
 
   async connect(targetLanguage: string) {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
-      this.inputContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      this.outputContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      
-      const inputAnalyser = this.inputContext.createAnalyser();
-      const outputAnalyser = this.outputContext.createAnalyser();
+      this.inputAudioContext = new AudioContext({ sampleRate: 16000 });
+      this.outputAudioContext = new AudioContext({ sampleRate: 24000 });
+      const inputAnalyser = this.inputAudioContext.createAnalyser();
+      const outputAnalyser = this.outputAudioContext.createAnalyser();
       
       if (this.onInputAudio) this.onInputAudio(inputAnalyser);
       if (this.onOutputAudio) this.onOutputAudio(outputAnalyser);
 
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      this.currentSessionPromise = ai.live.connect({
+      const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
-          },
-          systemInstruction: `You are a professional simultaneous interpreter. 
-          Your task is to translate spoken content between English and ${targetLanguage}. 
-          If you hear English, translate it to ${targetLanguage}. 
-          If you hear ${targetLanguage}, translate it to English. 
-          Keep translations accurate and natural. Do not add conversational filler.`,
-        },
         callbacks: {
           onopen: () => {
-             console.log("Live session connected");
-             this.startInputStream(inputAnalyser);
+            const source = this.inputAudioContext!.createMediaStreamSource(this.stream!);
+            const scriptProcessor = this.inputAudioContext!.createScriptProcessor(4096, 1, 1);
+            scriptProcessor.onaudioprocess = (e) => {
+              const pcmBlob = createPcmBlob(e.inputBuffer.getChannelData(0));
+              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob }));
+            };
+            source.connect(inputAnalyser);
+            inputAnalyser.connect(scriptProcessor);
+            scriptProcessor.connect(this.inputAudioContext!.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
-             await this.handleMessage(msg, outputAnalyser);
+            const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+            if (audioData) {
+              this.nextStartTime = Math.max(this.nextStartTime, this.outputAudioContext!.currentTime);
+              const buffer = await decodeAudioData(decode(audioData), this.outputAudioContext!);
+              const source = this.outputAudioContext!.createBufferSource();
+              source.buffer = buffer;
+              source.connect(outputAnalyser);
+              outputAnalyser.connect(this.outputAudioContext!.destination);
+              source.start(this.nextStartTime);
+              this.nextStartTime += buffer.duration;
+              this.sources.add(source);
+              source.onended = () => this.sources.delete(source);
+            }
           },
-          onclose: () => {
-             console.log("Session closed");
-          },
-          onerror: (err) => {
-             console.error(err);
-             if (this.onError) this.onError("Connection error occurred.");
-          }
-        }
+          onerror: (e: any) => this.onError?.(e.message),
+        },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          systemInstruction: `Real-time interpreter for English and ${targetLanguage}. 
+          Names of people, places, and brands MUST be transliterated phonetically, NOT translated.
+          Identify intent and speak in natural fluent target script. Preserve all numbers and punctuation.
+          Silently verify natural phrasing and phonetic preservation before speaking.`,
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
+        },
       });
-      
-    } catch (err) {
-      console.error(err);
-      if (this.onError) this.onError(err instanceof Error ? err.message : "Failed to start session.");
+      this.session = await sessionPromise;
+    } catch (err: any) {
+      this.onError?.("Microphone access denied.");
     }
-  }
-
-  private startInputStream(analyser: AnalyserNode) {
-     if (!this.inputContext || !this.mediaStream) return;
-     
-     const source = this.inputContext.createMediaStreamSource(this.mediaStream);
-     const processor = this.inputContext.createScriptProcessor(4096, 1, 1);
-     
-     processor.onaudioprocess = (e) => {
-       const inputData = e.inputBuffer.getChannelData(0);
-       const pcmBlob = createPcmBlob(inputData);
-       
-       this.currentSessionPromise?.then(session => {
-          session.sendRealtimeInput({ media: pcmBlob });
-       });
-     };
-     
-     source.connect(analyser);
-     analyser.connect(processor);
-     processor.connect(this.inputContext.destination);
-  }
-
-  private async handleMessage(message: LiveServerMessage, analyser: AnalyserNode) {
-     if (!this.outputContext) return;
-
-     const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-     if (base64Audio) {
-       try {
-         const audioData = base64ToUint8Array(base64Audio);
-         const buffer = await decodeAudioData(audioData, this.outputContext, 24000, 1);
-         
-         this.nextStartTime = Math.max(this.outputContext.currentTime, this.nextStartTime);
-         
-         const source = this.outputContext.createBufferSource();
-         source.buffer = buffer;
-         source.connect(analyser);
-         analyser.connect(this.outputContext.destination);
-         
-         source.start(this.nextStartTime);
-         this.nextStartTime += buffer.duration;
-         
-         this.sources.add(source);
-         source.onended = () => this.sources.delete(source);
-       } catch (e) {
-         console.error("Error decoding audio", e);
-       }
-     }
-     
-     if (message.serverContent?.interrupted) {
-       this.sources.forEach(s => s.stop());
-       this.sources.clear();
-       this.nextStartTime = 0;
-     }
   }
 
   disconnect() {
-    if (this.currentSessionPromise) {
-        this.currentSessionPromise.then(session => session.close());
-        this.currentSessionPromise = null;
-    }
-    
-    if (this.mediaStream) {
-        this.mediaStream.getTracks().forEach(t => t.stop());
-        this.mediaStream = null;
-    }
-    
-    if (this.inputContext) {
-        this.inputContext.close();
-        this.inputContext = null;
-    }
-    
-    if (this.outputContext) {
-        this.outputContext.close();
-        this.outputContext = null;
-    }
-    
-    this.sources.clear();
-    this.nextStartTime = 0;
+    this.session?.close();
+    this.stream?.getTracks().forEach(t => t.stop());
+    this.inputAudioContext?.close();
+    this.outputAudioContext?.close();
+    this.sources.forEach(s => s.stop());
   }
 }

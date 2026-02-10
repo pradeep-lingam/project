@@ -22,7 +22,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className={`text-xl font-bold tracking-tight leading-none transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Bharat Linguist</h1>
-            <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70 transition-colors duration-500 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Intelligent Translation Engine</p>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70 transition-colors duration-500 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>AI Multilingual Engine</p>
           </div>
         </div>
 
@@ -46,7 +46,7 @@ const App: React.FC = () => {
 
       {/* Content Area */}
       <main className="flex-1 overflow-hidden relative z-20">
-        <div className="absolute inset-0 overflow-y-auto">
+        <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
           <TranslatorView isDarkMode={isDarkMode} />
         </div>
       </main>

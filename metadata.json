@@ -1,5 +1,8 @@
 {
   "name": "Bharat language",
-  "description": "A comprehensive AI-powered translation tool for Indian languages, featuring text and image (OCR) translation using Google Gemini.",
-  "requestFramePermissions": []
+  "description": "A professional AI-powered interpretation tool for Indian languages, featuring high-fidelity text and image (OCR) translation using Google Gemini.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }
