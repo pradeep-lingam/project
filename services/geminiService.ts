@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Modality, LiveServerMessage } from "@google/genai";
 import { IndianLanguage, TranslationResult, TranslationContext } from "../types";
 import { decode, encode, decodeAudioData, createPcmBlob } from "../utils/audioUtils";
@@ -19,7 +20,7 @@ Before finalizing:
 If any check fails, rewrite the translation once. Output ONLY the final JSON result.
 
 OUTPUT FORMAT:
-Return a JSON object: {"translation": "...", "detectedSourceLanguage": "..."}`;
+Return a JSON object: {"translation": "...", "detectedSourceLanguage": "...", "confidenceScore": 0.0-1.0}`;
 
 const TRANSLITERATOR_SYSTEM_INSTRUCTION = `You are a professional linguistic transliteration engine.
 Your task is transliteration, NOT translation.
@@ -62,9 +63,13 @@ export const translateContent = async (
       type: Type.OBJECT,
       properties: {
         translation: { type: Type.STRING },
-        detectedSourceLanguage: { type: Type.STRING }
+        detectedSourceLanguage: { type: Type.STRING },
+        confidenceScore: { 
+          type: Type.NUMBER,
+          description: "A value from 0.0 to 1.0 representing confidence in the translation accuracy."
+        }
       },
-      required: ["translation", "detectedSourceLanguage"]
+      required: ["translation", "detectedSourceLanguage", "confidenceScore"]
     };
 
     if (mode === 'transliterate') {
@@ -100,7 +105,11 @@ IMPORTANT:
       });
 
       const result = JSON.parse(response.text || "{}");
-      return { text: result.translation, detectedSourceLanguage: result.detectedSourceLanguage };
+      return { 
+        text: result.translation, 
+        detectedSourceLanguage: result.detectedSourceLanguage,
+        confidenceScore: result.confidenceScore
+      };
     }
 
     // Translation Path
@@ -126,7 +135,11 @@ IMPORTANT:
       });
 
       const json = JSON.parse(response.text || "{}");
-      return { text: json.translation, detectedSourceLanguage: json.detectedSourceLanguage };
+      return { 
+        text: json.translation, 
+        detectedSourceLanguage: json.detectedSourceLanguage,
+        confidenceScore: json.confidenceScore
+      };
     } 
     
     else if (text) {
@@ -146,7 +159,11 @@ IMPORTANT:
       });
 
       const result = JSON.parse(response.text || "{}");
-      return { text: result.translation, detectedSourceLanguage: result.detectedSourceLanguage };
+      return { 
+        text: result.translation, 
+        detectedSourceLanguage: result.detectedSourceLanguage,
+        confidenceScore: result.confidenceScore
+      };
     }
 
     return { text: "" };

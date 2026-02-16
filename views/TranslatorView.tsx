@@ -15,6 +15,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
   const [sourceLang, setSourceLang] = useState<string>('Auto-detect');
   const [targetLang, setTargetLang] = useState<string>(IndianLanguage.Hindi);
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
+  const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   const [context, setContext] = useState<TranslationContext>(TranslationContext.Casual);
   const [mode, setMode] = useState<'translate' | 'transliterate'>('translate');
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +58,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
     if (!hasContent) return;
     setIsLoading(true);
     setDetectedLang(null);
+    setConfidenceScore(null);
     setErrorMessage(null);
 
     try {
@@ -69,6 +71,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
         context
       );
       setTargetText(result.text);
+      setConfidenceScore(result.confidenceScore ?? null);
       if (result.detectedSourceLanguage && sourceLang === 'Auto-detect') {
         setDetectedLang(result.detectedSourceLanguage);
       }
@@ -123,6 +126,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
     setSourceText('');
     setTargetText('');
     setDetectedLang(null);
+    setConfidenceScore(null);
     setSelectedImage(null);
     setErrorMessage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -133,6 +137,13 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
     if (text) {
       navigator.clipboard.writeText(text);
     }
+  };
+
+  // Helper to get color for confidence
+  const getConfidenceColor = (score: number) => {
+    if (score >= 0.8) return isDarkMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border-emerald-100';
+    if (score >= 0.5) return isDarkMode ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-50 text-amber-600 border-amber-100';
+    return isDarkMode ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-rose-50 text-rose-600 border-rose-100';
   };
 
   return (
@@ -328,7 +339,20 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
         {/* Interpretation Card */}
         <div className={`backdrop-blur-[100px] rounded-[40px] border flex flex-col overflow-hidden relative transition-all duration-1000 shadow-xl ${isDarkMode ? 'bg-slate-900 border-white/10 shadow-black/40' : 'bg-indigo-50/40 border-indigo-200/50'}`}>
            <div className={`px-8 py-6 border-b flex justify-between items-center transition-colors duration-500 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white/40 border-indigo-200/20'}`}>
-            <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-indigo-500'}`}>Interpretation Result</span>
+            <div className="flex items-center gap-4">
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-indigo-500'}`}>Interpretation Result</span>
+              {confidenceScore !== null && (
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all duration-500 ${getConfidenceColor(confidenceScore)}`}>
+                  <div className="relative w-2.5 h-2.5 flex items-center justify-center">
+                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 32 32">
+                      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="4" className="opacity-20" />
+                      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray={`${confidenceScore * 88} 88`} strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <span>{Math.round(confidenceScore * 100)}% Confidence</span>
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <button 
                 onClick={() => handlePlaySpeech(targetText, setIsSpeakingTarget)} 

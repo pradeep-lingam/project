@@ -1,3 +1,4 @@
+
 export enum IndianLanguage {
   Hindi = 'Hindi',
   Bengali = 'Bengali',
@@ -22,6 +23,7 @@ export enum TranslationContext {
 export interface TranslationResult {
   text: string;
   detectedSourceLanguage?: string;
+  confidenceScore?: number;
 }
 
 export interface ChatMessage {
