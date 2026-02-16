@@ -1,3 +1,4 @@
+
 import os
 import shutil
 import uuid
@@ -8,7 +9,7 @@ import google.generativeai as genai
 from ai4bharat.transliteration import XlitEngine
 
 # Initialize FastAPI app
-app = FastAPI(title="Bharat Linguist API")
+app = FastAPI(title="Bharat languages API")
 
 # Setup CORS middleware
 app.add_middleware(
@@ -56,7 +57,7 @@ class TransliterationRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "Bharat Linguist Backend Ready"}
+    return {"message": "Bharat languages Backend Ready"}
 
 @app.post("/transliterate")
 async def transliterate_text(request: TransliterationRequest):

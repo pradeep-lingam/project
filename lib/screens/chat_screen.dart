@@ -1,3 +1,4 @@
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -153,7 +154,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bharat Linguist'),
+        title: const Text('Bharat languages'),
         backgroundColor: Colors.indigo,
         elevation: 0,
         actions: [

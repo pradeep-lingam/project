@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { TranslatorView } from './views/TranslatorView';
 
@@ -21,7 +22,7 @@ const App: React.FC = () => {
             </svg>
           </div>
           <div>
-            <h1 className={`text-xl font-bold tracking-tight leading-none transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Bharat Linguist</h1>
+            <h1 className={`text-xl font-bold tracking-tight leading-none transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Bharat languages</h1>
             <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70 transition-colors duration-500 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>AI Multilingual Engine</p>
           </div>
         </div>
