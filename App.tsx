@@ -8,29 +8,29 @@ const App: React.FC = () => {
   return (
     <div className={`flex flex-col h-full relative overflow-hidden transition-colors duration-500 ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
       
-      {/* Decorative Background Elements */}
-      <div className={`absolute top-[-10%] left-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none animate-float transition-all duration-700 ${isDarkMode ? 'bg-indigo-900/20' : 'bg-indigo-200/40'}`}></div>
-      <div className={`absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none animate-float transition-all duration-700 ${isDarkMode ? 'bg-purple-900/10' : 'bg-rose-100/40'}`} style={{ animationDelay: '-5s' }}></div>
-      <div className={`absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full blur-[100px] pointer-events-none animate-float transition-all duration-700 ${isDarkMode ? 'bg-emerald-900/10' : 'bg-teal-100/30'}`} style={{ animationDelay: '-10s' }}></div>
+      {/* Decorative Background Elements - Adjusted for visibility */}
+      <div className={`absolute top-[-10%] left-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none animate-float transition-all duration-700 ${isDarkMode ? 'bg-indigo-600/10' : 'bg-indigo-200/40'}`}></div>
+      <div className={`absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none animate-float transition-all duration-700 ${isDarkMode ? 'bg-purple-600/10' : 'bg-rose-100/40'}`} style={{ animationDelay: '-5s' }}></div>
+      <div className={`absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full blur-[100px] pointer-events-none animate-float transition-all duration-700 ${isDarkMode ? 'bg-emerald-600/10' : 'bg-teal-100/30'}`} style={{ animationDelay: '-10s' }}></div>
 
       {/* Navbar */}
-      <header className={`px-6 py-4 flex items-center justify-between shrink-0 z-30 transition-all duration-500 border-b backdrop-blur-md ${isDarkMode ? 'bg-slate-900/60 border-white/5' : 'bg-white/70 border-slate-200/60'}`}>
+      <header className={`px-6 py-4 flex items-center justify-between shrink-0 z-30 transition-all duration-500 border-b backdrop-blur-md ${isDarkMode ? 'bg-slate-900/80 border-white/10' : 'bg-white/70 border-slate-200/60'}`}>
         <div className="flex items-center gap-3">
-          <div className={`rounded-xl p-2.5 shadow-lg transition-all duration-500 ${isDarkMode ? 'bg-indigo-500 shadow-indigo-500/20' : 'bg-indigo-600 shadow-indigo-200'}`}>
+          <div className={`rounded-xl p-2.5 shadow-lg transition-all duration-500 ${isDarkMode ? 'bg-indigo-600 shadow-indigo-500/20' : 'bg-indigo-600 shadow-indigo-200'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div>
             <h1 className={`text-xl font-bold tracking-tight leading-none transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Bharat languages</h1>
-            <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70 transition-colors duration-500 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>AI Multilingual Engine</p>
+            <p className={`text-[10px] font-black uppercase tracking-widest mt-1 opacity-70 transition-colors duration-500 ${isDarkMode ? 'text-indigo-400' : 'text-slate-500'}`}>AI Multilingual Engine</p>
           </div>
         </div>
 
         {/* Theme Toggle Button */}
         <button 
           onClick={() => setIsDarkMode(!isDarkMode)}
-          className={`p-2.5 rounded-xl transition-all duration-300 border flex items-center gap-2 group ${isDarkMode ? 'bg-slate-800 border-white/10 text-yellow-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'}`}
+          className={`p-2.5 rounded-xl transition-all duration-300 border flex items-center gap-2 group ${isDarkMode ? 'bg-slate-800 border-white/20 text-yellow-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'}`}
           title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {isDarkMode ? (
