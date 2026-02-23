@@ -172,6 +172,45 @@ IMPORTANT:
   }
 };
 
+export const getTransliterationSuggestions = async (
+  text: string,
+  targetLanguage: IndianLanguage,
+  sourceLanguage: string = 'English'
+): Promise<string[]> => {
+  if (!text.trim()) return [];
+
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const modelName = 'gemini-3-flash-preview';
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: `Provide exactly 5 phonetic transliteration suggestions for the following text into ${targetLanguage} script.
+      
+      Source: ${sourceLanguage}
+      Text: "${text}"
+      
+      Rules:
+      - Return ONLY a JSON array of strings.
+      - Each string should be a valid phonetic transliteration.
+      - Provide variations if possible (e.g., different ways to represent the same sound in the target script).
+      - Do not translate.`,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      },
+    });
+
+    return JSON.parse(response.text || "[]");
+  } catch (error) {
+    console.error("Transliteration suggestions failed:", error);
+    return [];
+  }
+};
+
 export const generateSpeech = async (text: string): Promise<string> => {
   if (!text.trim()) return "";
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });

@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { IndianLanguage, TranslationContext } from '../types';
 import { LanguageSelect } from '../components/LanguageSelect';
-import { translateContent, generateSpeech } from '../services/geminiService';
+import { translateContent, generateSpeech, getTransliterationSuggestions } from '../services/geminiService';
 import { base64ToUint8Array, decodeAudioData } from '../utils/audioUtils';
 
 interface TranslatorViewProps {
@@ -23,6 +23,12 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
   const [isSpeakingTarget, setIsSpeakingTarget] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Transliteration Suggestions State
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -53,6 +59,63 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
     textAreaRef.current?.focus();
     return () => { audioContextRef.current?.close(); };
   }, []);
+
+  // Transliteration Suggestions Logic
+  useEffect(() => {
+    if (mode !== 'transliterate' || !sourceText.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsFetchingSuggestions(true);
+      try {
+        const results = await getTransliterationSuggestions(
+          sourceText, 
+          targetLang as IndianLanguage,
+          sourceLang === 'Auto-detect' ? 'English' : sourceLang
+        );
+        setSuggestions(results);
+        if (results.length > 0) {
+          setShowSuggestions(true);
+          setActiveSuggestionIndex(0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch suggestions", err);
+      } finally {
+        setIsFetchingSuggestions(false);
+      }
+    }, 800); // Debounce
+
+    return () => clearTimeout(timer);
+  }, [sourceText, mode, targetLang, sourceLang]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (e.key === 'Tab' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter') {
+      if (activeSuggestionIndex >= 0) {
+        e.preventDefault();
+        setTargetText(suggestions[activeSuggestionIndex]);
+        setShowSuggestions(false);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectSuggestion = (index: number) => {
+    setTargetText(suggestions[index]);
+    setActiveSuggestionIndex(index);
+    setShowSuggestions(false);
+  };
 
   const handleTranslate = async () => {
     if (!hasContent) return;
@@ -319,8 +382,43 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
               }`} 
               placeholder="Start your thought..." 
               value={sourceText} 
-              onChange={(e) => setSourceText(e.target.value)} 
+              onChange={(e) => setSourceText(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
+            
+            {/* Transliteration Suggestions UI */}
+            {mode === 'transliterate' && showSuggestions && suggestions.length > 0 && (
+              <div className={`absolute bottom-full left-8 mb-4 p-2 rounded-2xl border shadow-2xl backdrop-blur-2xl flex flex-wrap gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300 z-50 ${
+                isDarkMode ? 'bg-slate-800 border-white/10' : 'bg-white border-slate-200'
+              }`}>
+                {suggestions.map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => selectSuggestion(idx)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                      idx === activeSuggestionIndex
+                        ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-900 text-white shadow-lg')
+                        : (isDarkMode ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-black/5 hover:text-slate-900')
+                    }`}
+                  >
+                    {suggestion}
+                    <span className="ml-2 opacity-30 text-[10px]">{idx + 1}</span>
+                  </button>
+                ))}
+                <div className={`ml-2 pl-2 border-l flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500 border-white/10' : 'text-slate-400 border-slate-100'}`}>
+                  <span>Tab to cycle</span>
+                  <span className="w-1 h-1 rounded-full bg-current opacity-30"></span>
+                  <span>Enter to pick</span>
+                </div>
+              </div>
+            )}
+            
+            {isFetchingSuggestions && (
+              <div className="absolute bottom-full left-8 mb-4 flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 animate-pulse">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Finding options...</span>
+              </div>
+            )}
             <input type="file" ref={fileInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
           </div>
           
