@@ -3,7 +3,7 @@ import { GoogleGenAI, Type, Modality, LiveServerMessage } from "@google/genai";
 import { IndianLanguage, TranslationResult, TranslationContext } from "../types";
 import { decode, encode, decodeAudioData, createPcmBlob } from "../utils/audioUtils";
 
-const INTERPRETER_SYSTEM_INSTRUCTION = `You are a world-class multilingual interpreter specializing in Indian languages. Your primary goal is "Intent-First Interpretation."
+const INTERPRETER_SYSTEM_INSTRUCTION = `You are a world-class multilingual interpreter specializing in English and Indian languages. Your primary goal is "Intent-First Interpretation."
 
 STRICT TRANSLATION RULES:
 1. MEANING OVER WORDS: Identify the underlying intent and translate it into natural, fluent target language.
@@ -17,6 +17,7 @@ Before finalizing:
 - CHECK 2: Is the phrasing natural for a native speaker?
 - CHECK 3: Are proper nouns, brands, and technical terms phonetically transliterated rather than translated?
 - CHECK 4: Are all numbers and punctuation preserved exactly?
+- CHECK 5: Is the translation strictly into the requested target language?
 If any check fails, rewrite the translation once. Output ONLY the final JSON result.
 
 OUTPUT FORMAT:
@@ -113,11 +114,18 @@ IMPORTANT:
     }
 
     // Translation Path
+    const sourceInfo = sourceLanguage === 'Auto-detect' ? 'the detected language' : sourceLanguage;
+
     if (imageBase64) {
-      const prompt = `Translate image text to ${targetLanguage} (${context} tone). 
-      Names of people, places, and brands MUST be transliterated phonetically, not translated.
-      Preserve all numbers and punctuation exactly as in the original image.
-      Use meaning-based translation for everything else.`;
+      const prompt = `Task: Translate the text from the image into ${targetLanguage}.
+      Source Language: ${sourceInfo}
+      Tone/Context: ${context}
+
+      Rules:
+      1. Names of people, places, and brands MUST be transliterated phonetically, not translated.
+      2. Preserve all numbers and punctuation exactly as in the original image.
+      3. Use meaning-based translation for everything else.
+      4. Ensure the output is in the ${targetLanguage} script.`;
 
       const response = await ai.models.generateContent({
         model: modelName,
@@ -143,10 +151,17 @@ IMPORTANT:
     } 
     
     else if (text) {
-      const prompt = `Translate to ${targetLanguage} (Context: ${context}): "${text}". 
-      Names of people, places, and brands MUST be transliterated phonetically, not translated.
-      Preserve all numbers and punctuation exactly as in the source.
-      Mixed language input should result in pure target language output while preserving proper nouns phonetically.`;
+      const prompt = `Task: Translate the following text into ${targetLanguage}.
+      Source Language: ${sourceInfo}
+      Tone/Context: ${context}
+
+      Text: "${text}"
+
+      Rules:
+      1. Names of people, places, and brands MUST be transliterated phonetically, not translated.
+      2. Preserve all numbers and punctuation exactly as in the source.
+      3. Mixed language input should result in pure target language output while preserving proper nouns phonetically.
+      4. Ensure the output is strictly in the ${targetLanguage} script.`;
 
       const response = await ai.models.generateContent({
         model: modelName,

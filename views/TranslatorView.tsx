@@ -117,6 +117,14 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
     setShowSuggestions(false);
   };
 
+  const swapLanguages = () => {
+    if (sourceLang === 'Auto-detect') return;
+    const prevSource = sourceLang;
+    const prevTarget = targetLang;
+    setSourceLang(prevTarget);
+    setTargetLang(prevSource as IndianLanguage);
+  };
+
   const handleTranslate = async () => {
     if (!hasContent) return;
     setIsLoading(true);
@@ -234,81 +242,114 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
       )}
 
       {/* Modern Mode Toggle */}
-      <div className="flex justify-center mt-2">
-         <div className={`backdrop-blur-3xl p-1.5 rounded-full inline-flex items-center gap-1 shadow-[0_20px_50px_rgba(0,0,0,0.2)] border transition-all duration-700 ${isDarkMode ? 'bg-slate-800 border-white/20' : 'bg-white/80 border-slate-200'}`}>
-            <button onClick={() => setMode('translate')} className={`relative px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-500 overflow-hidden group ${mode === 'translate' ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-900 text-white') : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800')}`}>
-              <span className="relative z-10">Translation</span>
+      <div className="flex justify-center mt-6">
+         <div className={`backdrop-blur-3xl p-1 rounded-full inline-flex items-center gap-0 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border transition-all duration-700 ${isDarkMode ? 'bg-slate-900/80 border-white/5' : 'bg-white/80 border-slate-200'}`}>
+            <button 
+              onClick={() => setMode('translate')} 
+              className={`px-10 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${
+                mode === 'translate' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600')
+              }`}
+            >
+              TRANSLATION
             </button>
-            <button onClick={() => setMode('transliterate')} className={`relative px-8 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-500 overflow-hidden group ${mode === 'transliterate' ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-900 text-white') : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800')}`}>
-              <span className="relative z-10">Transliteration</span>
+            <button 
+              onClick={() => setMode('transliterate')} 
+              className={`px-10 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${
+                mode === 'transliterate' 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                : (isDarkMode ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600')
+              }`}
+            >
+              TRANSLITERATION
             </button>
          </div>
       </div>
 
       {/* Enhanced Settings Panel */}
-      <div className={`backdrop-blur-3xl p-8 rounded-[40px] shadow-2xl border flex flex-col gap-8 z-20 relative transition-all duration-1000 group/panel ${isDarkMode ? 'bg-slate-900 border-white/10 hover:border-white/20 shadow-black/40' : 'bg-white/70 border-slate-200/60 hover:border-slate-300'}`}>
-         <div className="flex flex-col xl:flex-row gap-8 items-end justify-between w-full">
-            <div className="flex flex-col md:flex-row gap-6 items-center w-full xl:w-auto">
-                <div className="w-full sm:w-72">
-                  <LanguageSelect label="Translate from" value={sourceLang} onChange={setSourceLang} includeAutoDetect includeEnglish isDarkMode={isDarkMode} />
-                </div>
-                <div className={`flex items-center justify-center p-2 rounded-full transition-transform duration-500 hover:rotate-180 cursor-pointer hidden md:flex ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isDarkMode ? 'text-indigo-400' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                </div>
-                <div className="w-full sm:w-72">
-                  <LanguageSelect label="Translate to" value={targetLang} onChange={setTargetLang} isDarkMode={isDarkMode} />
-                </div>
+      <div className={`backdrop-blur-3xl p-10 rounded-[48px] shadow-2xl border flex flex-col gap-10 z-20 relative transition-all duration-1000 group/panel ${isDarkMode ? 'bg-slate-900/40 border-white/5 hover:border-white/10 shadow-black/40' : 'bg-white/70 border-slate-200/60 hover:border-slate-300'}`}>
+         
+         {/* Row 1: Languages */}
+         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-8 items-center w-full">
+            <div className="w-full">
+              <LanguageSelect label="TRANSLATE FROM" value={sourceLang} onChange={setSourceLang} includeAutoDetect includeEnglish isDarkMode={isDarkMode} />
             </div>
             
-            <div className="flex flex-col md:flex-row gap-6 items-end w-full xl:w-auto">
-              {mode === 'translate' && (
-                <div className="w-full sm:w-64 flex flex-col gap-2">
-                  <label className={`text-[10px] font-black uppercase tracking-widest pl-1 ${isDarkMode ? 'text-indigo-400' : 'text-slate-400'}`}>Tonal Context</label>
-                  <select 
-                    value={context} 
-                    onChange={(e) => setContext(e.target.value as TranslationContext)} 
-                    className={`w-full border px-5 py-4 rounded-2xl focus:outline-none transition-all text-sm font-bold shadow-sm ${
-                      isDarkMode 
-                      ? 'bg-slate-800 border-white/10 text-slate-100 focus:border-indigo-500' 
-                      : 'bg-white border-slate-200 text-slate-800 focus:border-indigo-500/30'
-                    }`}
-                  >
-                      <option value={TranslationContext.Casual}>Casual</option>
-                      <option value={TranslationContext.Formal}>Formal</option>
-                      <option value={TranslationContext.Healthcare}>Healthcare</option>
-                      <option value={TranslationContext.Professional}>Professional</option>
-                      <option value={TranslationContext.Emotional}>Emotional</option>
-                  </select>
+            <div className="pt-6 flex justify-center">
+              <button 
+                onClick={swapLanguages}
+                disabled={sourceLang === 'Auto-detect'}
+                className={`flex items-center justify-center p-3.5 rounded-xl border transition-all duration-500 hover:scale-110 active:scale-95 disabled:opacity-20 disabled:pointer-events-none ${
+                  isDarkMode 
+                  ? 'bg-slate-800/50 border-indigo-500/30 text-indigo-400 hover:border-indigo-400' 
+                  : 'bg-white border-slate-200 text-slate-400 hover:border-indigo-400'
+                }`}
+                title="Swap Languages"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="w-full">
+              <LanguageSelect label="TRANSLATE TO" value={targetLang} onChange={setTargetLang} includeEnglish isDarkMode={isDarkMode} />
+            </div>
+         </div>
+
+         {/* Row 2: Context & Actions */}
+         <div className="flex flex-col md:flex-row gap-8 items-end justify-between w-full">
+            <div className="w-full sm:w-80 flex flex-col gap-3">
+              <label className={`text-[10px] font-black uppercase tracking-[0.2em] pl-1 ${isDarkMode ? 'text-indigo-400' : 'text-slate-400'}`}>TONAL CONTEXT</label>
+              {mode === 'translate' ? (
+                <select 
+                  value={context} 
+                  onChange={(e) => setContext(e.target.value as TranslationContext)} 
+                  className={`w-full border px-6 py-4 rounded-2xl focus:outline-none transition-all text-sm font-bold shadow-sm appearance-none ${
+                    isDarkMode 
+                    ? 'bg-slate-800/50 border-white/10 text-slate-100 focus:border-indigo-500' 
+                    : 'bg-white border-slate-200 text-slate-800 focus:border-indigo-500/30'
+                  }`}
+                >
+                    <option value={TranslationContext.Casual}>Casual</option>
+                    <option value={TranslationContext.Formal}>Formal</option>
+                    <option value={TranslationContext.Healthcare}>Healthcare</option>
+                    <option value={TranslationContext.Professional}>Professional</option>
+                    <option value={TranslationContext.Emotional}>Emotional</option>
+                </select>
+              ) : (
+                <div className={`w-full border px-6 py-4 rounded-2xl text-sm font-bold opacity-30 ${isDarkMode ? 'bg-slate-800/50 border-white/10 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                  Not applicable for transliteration
                 </div>
               )}
-              <div className="flex items-center gap-4 w-full md:w-auto pt-4 md:pt-0">
-                  {hasContent && (
-                    <button 
-                      onClick={clearAll} 
-                      className={`px-6 py-4 text-xs font-black uppercase tracking-widest rounded-2xl transition-all duration-300 hover:scale-105 active:scale-95 ${
-                        isDarkMode ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-red-500'
-                      }`}
-                    >
-                      Reset
-                    </button>
-                  )}
+            </div>
+
+            <div className="flex items-center gap-8 w-full md:w-auto">
+                {hasContent && (
                   <button 
-                    onClick={handleTranslate} 
-                    disabled={isLoading || !hasContent} 
-                    className={`flex-1 md:flex-none px-12 py-4.5 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all transform active:scale-95 shadow-xl disabled:opacity-30 disabled:pointer-events-none hover:shadow-2xl hover:-translate-y-0.5 ${
-                      isLoading || !hasContent ? 'bg-slate-700 text-slate-500' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30'
+                    onClick={clearAll} 
+                    className={`text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 hover:opacity-100 ${
+                      isDarkMode ? 'text-slate-400 opacity-60' : 'text-slate-500 opacity-70'
                     }`}
                   >
-                      {isLoading ? (
-                        <div className="flex items-center gap-3">
-                          <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                          <span>Thinking...</span>
-                        </div>
-                      ) : "Apply Magic"}
+                    RESET
                   </button>
-              </div>
+                )}
+                <button 
+                  onClick={handleTranslate} 
+                  disabled={isLoading || !hasContent} 
+                  className={`flex-1 md:flex-none px-12 py-4 rounded-full font-black text-[10px] uppercase tracking-[0.2em] text-white transition-all transform active:scale-95 shadow-xl disabled:opacity-10 disabled:pointer-events-none hover:shadow-2xl hover:-translate-y-0.5 ${
+                    isLoading || !hasContent ? 'bg-slate-700 text-slate-500' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/40'
+                  }`}
+                >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span>THINKING...</span>
+                      </div>
+                    ) : "APPLY MAGIC"}
+                </button>
             </div>
          </div>
       </div>
@@ -319,7 +360,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
         <div className={`group/card backdrop-blur-3xl rounded-[40px] border flex flex-col overflow-hidden relative transition-all duration-700 shadow-lg ${isDarkMode ? 'bg-slate-900 border-white/10 focus-within:border-indigo-500 focus-within:shadow-indigo-500/20 shadow-black/40' : 'bg-white border-slate-200 focus-within:border-indigo-400/50 focus-within:shadow-indigo-500/5'}`}>
           <div className={`px-8 py-6 border-b flex justify-between items-center transition-colors duration-500 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50/50 border-slate-200'}`}>
             <div className="flex gap-4 items-center">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-slate-400'}`}>Input Stream</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-slate-400'}`}>INPUT STREAM</span>
               {detectedLang && sourceLang === 'Auto-detect' && (
                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
@@ -327,10 +368,10 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <button 
                 onClick={() => handlePlaySpeech(sourceText, setIsSpeakingSource)} 
-                className={`p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-300 hover:text-indigo-400 hover:bg-white/10' : 'text-slate-400 hover:text-indigo-600 hover:bg-black/5'}`} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600'}`} 
                 title="Listen"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -338,17 +379,17 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
                 </svg>
               </button>
               <button 
-                onClick={() => handleCopy(sourceText)} 
-                className={`p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-300 hover:text-indigo-400 hover:bg-white/10' : 'text-slate-400 hover:text-indigo-600 hover:bg-black/5'}`} 
-                title="Copy"
+                onClick={swapLanguages} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600'}`} 
+                title="Swap"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                 </svg>
               </button>
               <button 
                 onClick={() => fileInputRef.current?.click()} 
-                className={`p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-300 hover:text-indigo-400 hover:bg-white/10' : 'text-slate-400 hover:text-indigo-600 hover:bg-black/5'}`} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600'}`} 
                 title="Visual Translation"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -386,29 +427,31 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
               onKeyDown={handleKeyDown}
             />
             
-            {/* Transliteration Suggestions UI */}
+            {/* Transliteration Suggestions UI - Repositioned to top of input area */}
             {mode === 'transliterate' && showSuggestions && suggestions.length > 0 && (
-              <div className={`absolute bottom-full left-8 mb-4 p-2 rounded-2xl border shadow-2xl backdrop-blur-2xl flex flex-wrap gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300 z-50 ${
-                isDarkMode ? 'bg-slate-800 border-white/10' : 'bg-white border-slate-200'
+              <div className={`absolute top-4 left-4 right-4 p-2 rounded-3xl border shadow-2xl backdrop-blur-3xl flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500 z-50 ${
+                isDarkMode ? 'bg-slate-950/90 border-white/10' : 'bg-white/90 border-slate-200'
               }`}>
-                {suggestions.map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => selectSuggestion(idx)}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                      idx === activeSuggestionIndex
-                        ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-900 text-white shadow-lg')
-                        : (isDarkMode ? 'text-slate-400 hover:bg-white/5 hover:text-white' : 'text-slate-500 hover:bg-black/5 hover:text-slate-900')
-                    }`}
-                  >
-                    {suggestion}
-                    <span className="ml-2 opacity-30 text-[10px]">{idx + 1}</span>
-                  </button>
-                ))}
-                <div className={`ml-2 pl-2 border-l flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-500 border-white/10' : 'text-slate-400 border-slate-100'}`}>
-                  <span>Tab to cycle</span>
-                  <span className="w-1 h-1 rounded-full bg-current opacity-30"></span>
-                  <span>Enter to pick</span>
+                <div className="flex flex-wrap gap-1">
+                  {suggestions.map((suggestion, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => selectSuggestion(idx)}
+                      className={`px-4 py-2 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 ${
+                        idx === activeSuggestionIndex
+                          ? (isDarkMode ? 'bg-white/10 text-white' : 'bg-slate-900 text-white')
+                          : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')
+                      }`}
+                    >
+                      <span>{suggestion}</span>
+                      <span className="opacity-30 text-[10px] font-black">{idx + 1}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className={`hidden sm:flex items-center gap-3 px-6 py-2 border-l text-[9px] font-black uppercase tracking-[0.15em] ${isDarkMode ? 'text-slate-500 border-white/10' : 'text-slate-400 border-slate-100'}`}>
+                  <span>TAB TO CYCLE</span>
+                  <span className="w-1 h-1 rounded-full bg-current opacity-20"></span>
+                  <span>ENTER TO PICK</span>
                 </div>
               </div>
             )}
@@ -438,7 +481,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
         <div className={`backdrop-blur-[100px] rounded-[40px] border flex flex-col overflow-hidden relative transition-all duration-1000 shadow-xl ${isDarkMode ? 'bg-slate-900 border-white/10 shadow-black/40' : 'bg-indigo-50/40 border-indigo-200/50'}`}>
            <div className={`px-8 py-6 border-b flex justify-between items-center transition-colors duration-500 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white/40 border-indigo-200/20'}`}>
             <div className="flex items-center gap-4">
-              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-indigo-500'}`}>Interpretation Result</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-indigo-500'}`}>INTERPRETATION RESULT</span>
               {confidenceScore !== null && (
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all duration-500 ${getConfidenceColor(confidenceScore)}`}>
                   <div className="relative w-2.5 h-2.5 flex items-center justify-center">
@@ -447,15 +490,15 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
                       <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray={`${confidenceScore * 88} 88`} strokeLinecap="round" />
                     </svg>
                   </div>
-                  <span>{Math.round(confidenceScore * 100)}% Confidence</span>
+                  <span>{Math.round(confidenceScore * 100)}% CONFIDENCE</span>
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <button 
                 onClick={() => handlePlaySpeech(targetText, setIsSpeakingTarget)} 
                 disabled={!targetText} 
-                className={`p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95 text-indigo-400 disabled:opacity-20 disabled:pointer-events-none ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-indigo-500/10'}`} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 text-slate-500 disabled:opacity-10 disabled:pointer-events-none ${isDarkMode ? 'hover:text-indigo-400' : 'hover:text-indigo-600'}`} 
                 title="Listen"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -465,7 +508,7 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
               <button 
                 onClick={() => handleCopy(targetText)} 
                 disabled={!targetText} 
-                className={`p-2.5 rounded-xl transition-all hover:scale-110 active:scale-95 text-indigo-400 disabled:opacity-20 disabled:pointer-events-none ${isDarkMode ? 'hover:bg-white/10' : 'hover:bg-indigo-500/10'}`} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 text-slate-500 disabled:opacity-10 disabled:pointer-events-none ${isDarkMode ? 'hover:text-indigo-400' : 'hover:text-indigo-600'}`} 
                 title="Copy"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
