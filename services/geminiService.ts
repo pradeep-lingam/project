@@ -263,6 +263,9 @@ export class LiveSessionManager {
   async connect(targetLanguage: string) {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
+      // Ensure previous session is cleaned up
+      this.disconnect();
+
       this.inputAudioContext = new AudioContext({ sampleRate: 16000 });
       this.outputAudioContext = new AudioContext({ sampleRate: 24000 });
       const inputAnalyser = this.inputAudioContext.createAnalyser();
@@ -274,35 +277,51 @@ export class LiveSessionManager {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
       const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-3.1-flash-live-preview',
         callbacks: {
           onopen: () => {
-            const source = this.inputAudioContext!.createMediaStreamSource(this.stream!);
-            const scriptProcessor = this.inputAudioContext!.createScriptProcessor(4096, 1, 1);
+            if (!this.inputAudioContext || !this.stream) return;
+            const source = this.inputAudioContext.createMediaStreamSource(this.stream);
+            const scriptProcessor = this.inputAudioContext.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
-              const pcmBlob = createPcmBlob(e.inputBuffer.getChannelData(0));
-              sessionPromise.then(s => s.sendRealtimeInput({ media: pcmBlob }));
+              if (this.session) {
+                const pcmBlob = createPcmBlob(e.inputBuffer.getChannelData(0));
+                this.session.sendRealtimeInput({ audio: pcmBlob });
+              }
             };
             source.connect(inputAnalyser);
             inputAnalyser.connect(scriptProcessor);
-            scriptProcessor.connect(this.inputAudioContext!.destination);
+            scriptProcessor.connect(this.inputAudioContext.destination);
           },
           onmessage: async (msg: LiveServerMessage) => {
+            if (!this.outputAudioContext) return;
             const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (audioData) {
-              this.nextStartTime = Math.max(this.nextStartTime, this.outputAudioContext!.currentTime);
-              const buffer = await decodeAudioData(decode(audioData), this.outputAudioContext!);
-              const source = this.outputAudioContext!.createBufferSource();
-              source.buffer = buffer;
-              source.connect(outputAnalyser);
-              outputAnalyser.connect(this.outputAudioContext!.destination);
-              source.start(this.nextStartTime);
-              this.nextStartTime += buffer.duration;
-              this.sources.add(source);
-              source.onended = () => this.sources.delete(source);
+              try {
+                const buffer = await decodeAudioData(decode(audioData), this.outputAudioContext);
+                
+                // Jitter buffer: add a small lookahead (50ms) to ensure smooth transitions
+                const lookahead = 0.05; 
+                this.nextStartTime = Math.max(this.nextStartTime, this.outputAudioContext.currentTime + lookahead);
+                
+                const source = this.outputAudioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(outputAnalyser);
+                outputAnalyser.connect(this.outputAudioContext.destination);
+                source.start(this.nextStartTime);
+                
+                this.nextStartTime += buffer.duration;
+                this.sources.add(source);
+                source.onended = () => this.sources.delete(source);
+              } catch (e) {
+                console.error("Audio playback error:", e);
+              }
             }
           },
-          onerror: (e: any) => this.onError?.(e.message),
+          onerror: (e: any) => {
+            console.error("Live session error:", e);
+            this.onError?.(e.message || "Connection error occurred.");
+          },
         },
         config: {
           responseModalities: [Modality.AUDIO],
@@ -315,15 +334,110 @@ export class LiveSessionManager {
       });
       this.session = await sessionPromise;
     } catch (err: any) {
-      this.onError?.("Microphone access denied.");
+      console.error("Failed to connect live session:", err);
+      this.onError?.(err.message === "Microphone access denied." ? err.message : "Could not start live session. Please check your microphone.");
+      this.disconnect();
     }
   }
 
   disconnect() {
-    this.session?.close();
-    this.stream?.getTracks().forEach(t => t.stop());
-    this.inputAudioContext?.close();
-    this.outputAudioContext?.close();
-    this.sources.forEach(s => s.stop());
+    try {
+      this.session?.close();
+      this.session = null;
+      this.stream?.getTracks().forEach(t => t.stop());
+      this.stream = null;
+      this.inputAudioContext?.close();
+      this.inputAudioContext = null;
+      this.outputAudioContext?.close();
+      this.outputAudioContext = null;
+      this.sources.forEach(s => {
+        try { s.stop(); } catch(e) {}
+      });
+      this.sources.clear();
+      this.nextStartTime = 0;
+    } catch (e) {
+      console.error("Cleanup error:", e);
+    }
+  }
+}
+
+export class VoiceInputManager {
+  private session: any = null;
+  private audioContext: AudioContext | null = null;
+  private stream: MediaStream | null = null;
+
+  public onTranscription: ((text: string) => void) | null = null;
+  public onAudioProcess: ((analyser: AnalyserNode) => void) | null = null;
+  public onError: ((err: string) => void) | null = null;
+
+  async start(language: string) {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    try {
+      this.stop();
+
+      this.audioContext = new AudioContext({ sampleRate: 16000 });
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const sessionPromise = ai.live.connect({
+        model: 'gemini-3.1-flash-live-preview',
+        callbacks: {
+          onopen: () => {
+            if (!this.audioContext || !this.stream) return;
+            const analyser = this.audioContext.createAnalyser();
+            if (this.onAudioProcess) this.onAudioProcess(analyser);
+
+            const source = this.audioContext.createMediaStreamSource(this.stream);
+            const scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+            scriptProcessor.onaudioprocess = (e) => {
+              if (this.session) {
+                const pcmBlob = createPcmBlob(e.inputBuffer.getChannelData(0));
+                this.session.sendRealtimeInput({ audio: pcmBlob });
+              }
+            };
+            source.connect(analyser);
+            analyser.connect(scriptProcessor);
+            scriptProcessor.connect(this.audioContext.destination);
+          },
+          onmessage: async (msg: LiveServerMessage) => {
+            const text = msg.serverContent?.modelTurn?.parts?.[0]?.text || 
+                         (msg as any).inputTranscription?.text ||
+                         (msg as any).inputAudioTranscription?.text ||
+                         (msg as any).serverContent?.inputAudioTranscription?.text;
+            if (text) {
+              this.onTranscription?.(text);
+            }
+          },
+          onerror: (e: any) => {
+            console.error("Voice input error:", e);
+            this.onError?.(e.message || "Transcription error occurred.");
+          },
+        },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          systemInstruction: `You are a transcription engine for ${language}. 
+          Listen to the audio and transcribe it exactly into ${language} script. 
+          Do NOT translate. Output ONLY the transcription.`,
+          inputAudioTranscription: {},
+        },
+      });
+      this.session = await sessionPromise;
+    } catch (err: any) {
+      console.error("Failed to start voice input:", err);
+      this.onError?.(err.message === "Microphone access denied." ? err.message : "Microphone access failed.");
+      this.stop();
+    }
+  }
+
+  stop() {
+    try {
+      this.session?.close();
+      this.session = null;
+      this.stream?.getTracks().forEach(t => t.stop());
+      this.stream = null;
+      this.audioContext?.close();
+      this.audioContext = null;
+    } catch (e) {
+      console.error("Cleanup error:", e);
+    }
   }
 }

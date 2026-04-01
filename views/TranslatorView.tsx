@@ -1,8 +1,9 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { IndianLanguage, TranslationContext } from '../types';
 import { LanguageSelect } from '../components/LanguageSelect';
-import { translateContent, generateSpeech, getTransliterationSuggestions } from '../services/geminiService';
+import { AudioVisualizer } from '../components/AudioVisualizer';
+import { translateContent, generateSpeech, getTransliterationSuggestions, VoiceInputManager } from '../services/geminiService';
 import { base64ToUint8Array, decodeAudioData } from '../utils/audioUtils';
 
 interface TranslatorViewProps {
@@ -20,7 +21,11 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
   const [mode, setMode] = useState<'translate' | 'transliterate'>('translate');
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeakingSource, setIsSpeakingSource] = useState(false);
+  const [isRecordingSource, setIsRecordingSource] = useState(false);
+  const [sourceAnalyser, setSourceAnalyser] = useState<AnalyserNode | null>(null);
   const [isSpeakingTarget, setIsSpeakingTarget] = useState(false);
+  const [isRecordingTarget, setIsRecordingTarget] = useState(false);
+  const [targetAnalyser, setTargetAnalyser] = useState<AnalyserNode | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
@@ -33,6 +38,9 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const currentSpeechSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const sourceVoiceInputRef = useRef<VoiceInputManager>(new VoiceInputManager());
+  const targetVoiceInputRef = useRef<VoiceInputManager>(new VoiceInputManager());
 
   const hasContent = sourceText.trim().length > 0 || selectedImage !== null;
   const wordCount = sourceText.trim() === '' ? 0 : sourceText.trim().split(/\s+/).length;
@@ -57,7 +65,11 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
 
   useEffect(() => {
     textAreaRef.current?.focus();
-    return () => { audioContextRef.current?.close(); };
+    return () => { 
+      audioContextRef.current?.close(); 
+      sourceVoiceInputRef.current.stop();
+      targetVoiceInputRef.current.stop();
+    };
   }, []);
 
   // Transliteration Suggestions Logic
@@ -90,6 +102,34 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
 
     return () => clearTimeout(timer);
   }, [sourceText, mode, targetLang, sourceLang]);
+
+  const handleTranslate = useCallback(async () => {
+    if (!hasContent || isLoading) return;
+    setIsLoading(true);
+    setDetectedLang(null);
+    setConfidenceScore(null);
+    setErrorMessage(null);
+
+    try {
+      const result = await translateContent(
+        targetLang as IndianLanguage, 
+        sourceLang,
+        sourceText, 
+        selectedImage || undefined,
+        mode,
+        context
+      );
+      setTargetText(result.text);
+      setConfidenceScore(result.confidenceScore ?? null);
+      if (result.detectedSourceLanguage && sourceLang === 'Auto-detect') {
+        setDetectedLang(result.detectedSourceLanguage);
+      }
+    } catch (err: any) {
+      setErrorMessage(getUserFriendlyError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasContent, isLoading, targetLang, sourceLang, sourceText, selectedImage, mode, context]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!showSuggestions || suggestions.length === 0) return;
@@ -125,40 +165,30 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
     setTargetLang(prevSource as IndianLanguage);
   };
 
-  const handleTranslate = async () => {
-    if (!hasContent) return;
-    setIsLoading(true);
-    setDetectedLang(null);
-    setConfidenceScore(null);
-    setErrorMessage(null);
-
-    try {
-      const result = await translateContent(
-        targetLang as IndianLanguage, 
-        sourceLang,
-        sourceText, 
-        selectedImage || undefined,
-        mode,
-        context
-      );
-      setTargetText(result.text);
-      setConfidenceScore(result.confidenceScore ?? null);
-      if (result.detectedSourceLanguage && sourceLang === 'Auto-detect') {
-        setDetectedLang(result.detectedSourceLanguage);
-      }
-    } catch (err: any) {
-      setErrorMessage(getUserFriendlyError(err));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handlePlaySpeech = async (text: string, setSpeaking: (val: boolean) => void) => {
     if (!text.trim()) return;
     setSpeaking(true);
     setErrorMessage(null);
     try {
-      if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      // Stop any currently playing speech
+      if (currentSpeechSourceRef.current) {
+        try {
+          currentSpeechSourceRef.current.stop();
+        } catch (e) {
+          // Ignore if already stopped
+        }
+        currentSpeechSourceRef.current = null;
+      }
+
+      // Resume AudioContext if it was suspended by browser policy
+      if (audioContextRef.current?.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+      
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      }
+      
       const base64Audio = await generateSpeech(text);
       if (base64Audio) {
         const audioData = base64ToUint8Array(base64Audio);
@@ -166,12 +196,19 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
         const source = audioContextRef.current.createBufferSource();
         source.buffer = buffer;
         source.connect(audioContextRef.current.destination);
-        source.onended = () => setSpeaking(false);
+        source.onended = () => {
+          setSpeaking(false);
+          if (currentSpeechSourceRef.current === source) {
+            currentSpeechSourceRef.current = null;
+          }
+        };
+        currentSpeechSourceRef.current = source;
         source.start(0);
       } else {
         setSpeaking(false);
       }
     } catch (err: any) {
+      console.error("Speech playback failed:", err);
       setSpeaking(false);
       setErrorMessage(getUserFriendlyError(err));
     }
@@ -207,6 +244,85 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
   const handleCopy = (text: string) => {
     if (text) {
       navigator.clipboard.writeText(text);
+    }
+  };
+
+  const toggleTargetVoiceInput = async () => {
+    if (isRecordingTarget) {
+      targetVoiceInputRef.current.stop();
+      setIsRecordingTarget(false);
+      setTargetAnalyser(null);
+    } else {
+      // Stop source recording if active
+      if (isRecordingSource) {
+        sourceVoiceInputRef.current.stop();
+        setIsRecordingSource(false);
+        setSourceAnalyser(null);
+      }
+
+      setErrorMessage(null);
+      targetVoiceInputRef.current.onTranscription = (text) => {
+        setTargetText((prev) => {
+          if (prev.endsWith(text)) return prev;
+          return prev + (prev ? ' ' : '') + text;
+        });
+      };
+      targetVoiceInputRef.current.onAudioProcess = (analyser) => {
+        setTargetAnalyser(analyser);
+      };
+      targetVoiceInputRef.current.onError = (err) => {
+        setErrorMessage(err);
+        setIsRecordingTarget(false);
+        setTargetAnalyser(null);
+      };
+      try {
+        await targetVoiceInputRef.current.start(targetLang);
+        setIsRecordingTarget(true);
+      } catch (err) {
+        setErrorMessage("Microphone access failed.");
+        setIsRecordingTarget(false);
+        setTargetAnalyser(null);
+      }
+    }
+  };
+
+  const toggleSourceVoiceInput = async () => {
+    if (isRecordingSource) {
+      sourceVoiceInputRef.current.stop();
+      setIsRecordingSource(false);
+      setSourceAnalyser(null);
+    } else {
+      // Stop target recording if active
+      if (isRecordingTarget) {
+        targetVoiceInputRef.current.stop();
+        setIsRecordingTarget(false);
+        setTargetAnalyser(null);
+      }
+
+      setErrorMessage(null);
+      sourceVoiceInputRef.current.onTranscription = (text) => {
+        setSourceText((prev) => {
+          if (prev.endsWith(text)) return prev;
+          return prev + (prev ? ' ' : '') + text;
+        });
+      };
+      sourceVoiceInputRef.current.onAudioProcess = (analyser) => {
+        setSourceAnalyser(analyser);
+      };
+      sourceVoiceInputRef.current.onError = (err) => {
+        setErrorMessage(err);
+        setIsRecordingSource(false);
+        setSourceAnalyser(null);
+      };
+      try {
+        const langToUse = sourceLang === 'Auto-detect' ? 'the spoken Indian language' : sourceLang;
+        await sourceVoiceInputRef.current.start(langToUse);
+        setIsRecordingSource(true);
+      } catch (err) {
+        setErrorMessage("Microphone access failed.");
+        setIsRecordingSource(false);
+        setSourceAnalyser(null);
+      }
     }
   };
 
@@ -338,9 +454,9 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
                 )}
                 <button 
                   onClick={handleTranslate} 
-                  disabled={isLoading || !hasContent} 
+                  disabled={isLoading || !hasContent || isRecordingTarget || isRecordingSource} 
                   className={`flex-1 md:flex-none px-12 py-4 rounded-full font-black text-[10px] uppercase tracking-[0.2em] text-white transition-all transform active:scale-95 shadow-xl disabled:opacity-10 disabled:pointer-events-none hover:shadow-2xl hover:-translate-y-0.5 ${
-                    isLoading || !hasContent ? 'bg-slate-700 text-slate-500' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/40'
+                    isLoading || !hasContent || isRecordingTarget || isRecordingSource ? 'bg-slate-700 text-slate-500' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/40'
                   }`}
                 >
                     {isLoading ? (
@@ -370,8 +486,25 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
             </div>
             <div className="flex gap-1">
               <button 
+                onClick={toggleSourceVoiceInput}
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${
+                  isRecordingSource 
+                  ? 'text-red-500 bg-red-500/10 animate-pulse' 
+                  : (isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600')
+                }`}
+                title={isRecordingSource ? "Stop Recording" : "Voice Input"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={isRecordingSource ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </button>
+              <button 
                 onClick={() => handlePlaySpeech(sourceText, setIsSpeakingSource)} 
-                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600'}`} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${
+                  isSpeakingSource 
+                  ? 'text-indigo-500 animate-pulse' 
+                  : (isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600')
+                }`} 
                 title="Listen"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -400,6 +533,17 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
           </div>
           
           <div className="flex-1 p-10 flex flex-col group/inner relative">
+            {isRecordingSource && (
+              <div className="mb-6 animate-in fade-in zoom-in duration-500">
+                <div className={`p-1 rounded-2xl border transition-all duration-500 shadow-lg overflow-hidden relative ${isDarkMode ? 'bg-red-950/10 border-red-500/20' : 'bg-red-50 border-red-100'}`}>
+                   <div className="absolute top-2 left-3 flex items-center gap-1.5 z-10">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+                      <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">Recording {sourceLang}</span>
+                   </div>
+                   <AudioVisualizer analyser={sourceAnalyser} isActive={isRecordingSource} color="#ef4444" />
+                </div>
+              </div>
+            )}
             {selectedImage && (
               <div className="relative inline-block mb-6 group/img">
                 <div className="absolute inset-0 bg-indigo-500/20 blur-2xl rounded-full scale-75 opacity-0 group-hover/img:opacity-100 transition-opacity"></div>
@@ -496,9 +640,26 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
             </div>
             <div className="flex gap-1">
               <button 
+                onClick={toggleTargetVoiceInput}
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${
+                  isRecordingTarget 
+                  ? 'text-red-500 bg-red-500/10 animate-pulse' 
+                  : (isDarkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600')
+                }`}
+                title={isRecordingTarget ? "Stop Recording" : "Voice Input"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={isRecordingTarget ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </button>
+              <button 
                 onClick={() => handlePlaySpeech(targetText, setIsSpeakingTarget)} 
                 disabled={!targetText} 
-                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 text-slate-500 disabled:opacity-10 disabled:pointer-events-none ${isDarkMode ? 'hover:text-indigo-400' : 'hover:text-indigo-600'}`} 
+                className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${
+                  isSpeakingTarget 
+                  ? 'text-indigo-500 animate-pulse' 
+                  : 'text-slate-500'
+                } disabled:opacity-10 disabled:pointer-events-none ${isDarkMode ? 'hover:text-indigo-400' : 'hover:text-indigo-600'}`} 
                 title="Listen"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -518,6 +679,17 @@ export const TranslatorView: React.FC<TranslatorViewProps> = ({ isDarkMode }) =>
             </div>
           </div>
           <div className="flex-1 p-10 overflow-y-auto custom-scrollbar relative">
+            {isRecordingTarget && (
+              <div className="mb-6 animate-in fade-in zoom-in duration-500">
+                <div className={`p-1 rounded-2xl border transition-all duration-500 shadow-lg overflow-hidden relative ${isDarkMode ? 'bg-red-950/10 border-red-500/20' : 'bg-red-50 border-red-100'}`}>
+                   <div className="absolute top-2 left-3 flex items-center gap-1.5 z-10">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+                      <span className="text-[8px] font-black text-red-500 uppercase tracking-widest">Recording {targetLang}</span>
+                   </div>
+                   <AudioVisualizer analyser={targetAnalyser} isActive={isRecordingTarget} color="#ef4444" />
+                </div>
+              </div>
+            )}
             <p className={`text-2xl xl:text-3xl leading-relaxed font-bold whitespace-pre-wrap transition-all duration-700 ${
               targetText 
               ? (isDarkMode ? 'text-slate-100' : 'text-slate-900') 

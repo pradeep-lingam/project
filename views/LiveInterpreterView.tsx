@@ -1,128 +1,154 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { IndianLanguage } from '../types';
 import { LanguageSelect } from '../components/LanguageSelect';
-import { LiveSessionManager } from '../services/geminiService';
 import { AudioVisualizer } from '../components/AudioVisualizer';
+import { LiveSessionManager } from '../services/geminiService';
 
 interface LiveInterpreterViewProps {
   isDarkMode: boolean;
 }
 
 export const LiveInterpreterView: React.FC<LiveInterpreterViewProps> = ({ isDarkMode }) => {
-  const [isActive, setIsActive] = useState(false);
+  const [isLive, setIsLive] = useState(false);
   const [targetLang, setTargetLang] = useState<string>(IndianLanguage.Hindi);
-  const [status, setStatus] = useState<string>('Ready to start');
-  
-  const liveSessionRef = useRef<LiveSessionManager>(new LiveSessionManager());
-  
-  // Analyser nodes for visualization
   const [inputAnalyser, setInputAnalyser] = useState<AnalyserNode | null>(null);
   const [outputAnalyser, setOutputAnalyser] = useState<AnalyserNode | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
+  const liveSessionRef = useRef<LiveSessionManager>(new LiveSessionManager());
 
   useEffect(() => {
-    // Cleanup on unmount
+    const session = liveSessionRef.current;
+    session.onInputAudio = (analyser) => setInputAnalyser(analyser);
+    session.onOutputAudio = (analyser) => setOutputAnalyser(analyser);
+    session.onError = (err) => {
+      setError(err);
+      setIsLive(false);
+    };
+
     return () => {
-      liveSessionRef.current.disconnect();
+      session.disconnect();
     };
   }, []);
 
-  const toggleSession = async () => {
-    if (isActive) {
+  const toggleLive = async () => {
+    if (isLive) {
       liveSessionRef.current.disconnect();
-      setIsActive(false);
-      setStatus('Session ended');
+      setIsLive(false);
       setInputAnalyser(null);
       setOutputAnalyser(null);
     } else {
-      setStatus('Connecting...');
-      
-      liveSessionRef.current.onInputAudio = (analyser) => setInputAnalyser(analyser);
-      liveSessionRef.current.onOutputAudio = (analyser) => setOutputAnalyser(analyser);
-      liveSessionRef.current.onError = (err) => {
-        setStatus(`Error: ${err}`);
-        setIsActive(false);
-      };
-
-      await liveSessionRef.current.connect(targetLang);
-      
-      setIsActive(true);
-      setStatus('Listening... Speak now');
+      setError(null);
+      try {
+        await liveSessionRef.current.connect(targetLang);
+        setIsLive(true);
+      } catch (err: any) {
+        setError(err.message || "Failed to start live session.");
+        setIsLive(false);
+      }
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-100px)] max-w-2xl mx-auto p-6 gap-10 text-center animate-in fade-in duration-500">
-      
-      <div className="space-y-3">
-        <h2 className={`text-4xl font-black tracking-tight transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-          Live Interpreter
+    <div className="max-w-4xl mx-auto px-6 py-12 space-y-8">
+      <div className="text-center space-y-4">
+        <h2 className={`text-4xl font-black tracking-tighter ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+          LIVE INTERPRETER
         </h2>
-        <p className={`text-sm font-medium transition-colors duration-500 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-          Real-time bidirectional voice translation. Just speak naturally.
+        <p className={`text-sm font-medium max-w-lg mx-auto ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+          Real-time, two-way audio translation. Perfect for natural conversations between English and Indian languages.
         </p>
       </div>
 
-      <div className="w-full max-w-sm mx-auto">
-        <LanguageSelect 
-          label="Counterpart Language"
-          value={targetLang} 
-          onChange={setTargetLang}
-          isDarkMode={isDarkMode}
-        />
-      </div>
-
-      {/* Visualizers */}
-      <div className="w-full space-y-6">
-        <div className={`p-1 rounded-[24px] border transition-all duration-500 shadow-xl overflow-hidden relative group ${isDarkMode ? 'bg-indigo-950/20 border-white/5' : 'bg-white/60 border-slate-200'}`}>
-          <div className="absolute top-3 left-4 flex items-center gap-2 z-10">
-             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
-             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">AI Output</span>
-          </div>
-          <AudioVisualizer analyser={outputAnalyser} isActive={isActive} color="#6366f1" />
-        </div>
+      <div className={`backdrop-blur-xl rounded-[40px] border p-8 space-y-8 transition-all duration-700 ${
+        isDarkMode ? 'bg-slate-900/50 border-white/10 shadow-2xl shadow-black/50' : 'bg-white border-slate-200 shadow-xl shadow-indigo-100'
+      }`}>
         
-        <div className={`p-1 rounded-[24px] border transition-all duration-500 shadow-xl overflow-hidden relative group ${isDarkMode ? 'bg-emerald-950/10 border-white/5' : 'bg-white/60 border-slate-200'}`}>
-          <div className="absolute top-3 left-4 flex items-center gap-2 z-10">
-             <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-300'} transition-colors`}></div>
-             <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Your Voice</span>
+        <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+          <div className="flex items-center gap-4">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>English</span>
+            <div className={`w-8 h-[1px] ${isDarkMode ? 'bg-white/10' : 'bg-slate-200'}`}></div>
+            <LanguageSelect 
+              value={targetLang} 
+              onChange={setTargetLang} 
+              isDarkMode={isDarkMode} 
+              excludeAutoDetect
+            />
           </div>
-          <AudioVisualizer analyser={inputAnalyser} isActive={isActive} color="#10b981" />
+
+          <button
+            onClick={toggleLive}
+            className={`group relative px-10 py-5 rounded-full font-black text-xs uppercase tracking-[0.3em] transition-all transform active:scale-95 overflow-hidden ${
+              isLive 
+              ? 'bg-red-500 text-white shadow-red-500/20' 
+              : 'bg-indigo-600 text-white shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-1'
+            }`}
+          >
+            <div className="relative z-10 flex items-center gap-3">
+              {isLive ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                  <span>Stop Session</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  <span>Start Live Mode</span>
+                </>
+              )}
+            </div>
+            {!isLive && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
+            )}
+          </button>
         </div>
-      </div>
 
-      {/* Main Control */}
-      <div className="flex flex-col items-center gap-6">
-        <button
-          onClick={toggleSession}
-          className={`relative group rounded-full w-28 h-28 flex items-center justify-center transition-all duration-500 shadow-2xl transform active:scale-95
-            ${isActive 
-              ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30' 
-              : (isDarkMode ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200')}`}
-        >
-          {isActive ? (
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white pl-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-          )}
-          
-          {/* Pulsing effect when active */}
-          {isActive && (
-            <span className="absolute -inset-4 rounded-full bg-red-500/20 animate-ping pointer-events-none"></span>
-          )}
-        </button>
+        {error && (
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold text-center uppercase tracking-widest animate-shake">
+            {error}
+          </div>
+        )}
 
-        <p className={`text-lg font-bold tracking-tight transition-all duration-500 ${isActive ? 'text-red-500 animate-pulse' : (isDarkMode ? 'text-slate-500' : 'text-slate-400')}`}>
-          {status}
-        </p>
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* User Input Visualizer */}
+          <div className={`rounded-3xl p-6 space-y-4 border transition-all duration-500 ${
+            isLive ? (isDarkMode ? 'bg-white/5 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200') : (isDarkMode ? 'bg-black/20 border-white/5 opacity-40' : 'bg-slate-50 border-slate-100 opacity-40')
+          }`}>
+            <div className="flex justify-between items-center">
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-indigo-400' : 'text-indigo-500'}`}>Your Voice</span>
+              {isLive && <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-ping"></span>}
+            </div>
+            <div className="h-24 flex items-center justify-center">
+              <AudioVisualizer analyser={inputAnalyser} isDarkMode={isDarkMode} isActive={isLive} />
+            </div>
+          </div>
 
-      <div className={`text-xs p-5 rounded-2xl max-w-md transition-all duration-500 border backdrop-blur-sm leading-relaxed ${isDarkMode ? 'bg-blue-950/20 text-blue-300 border-blue-500/10' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-        <strong className="block mb-1 text-[10px] uppercase tracking-widest">Developer Note</strong>
-        Real-time interpretation requires a paid Gemini API Tier for optimized performance and low-latency audio streams.
+          {/* AI Output Visualizer */}
+          <div className={`rounded-3xl p-6 space-y-4 border transition-all duration-500 ${
+            isLive ? (isDarkMode ? 'bg-white/5 border-purple-500/30' : 'bg-purple-50 border-purple-200') : (isDarkMode ? 'bg-black/20 border-white/5 opacity-40' : 'bg-slate-50 border-slate-100 opacity-40')
+          }`}>
+            <div className="flex justify-between items-center">
+              <span className={`text-[10px] font-black uppercase tracking-widest ${isDarkMode ? 'text-purple-400' : 'text-purple-500'}`}>AI Interpretation</span>
+              {isLive && <span className="flex h-2 w-2 rounded-full bg-purple-500 animate-ping"></span>}
+            </div>
+            <div className="h-24 flex items-center justify-center">
+              <AudioVisualizer analyser={outputAnalyser} isDarkMode={isDarkMode} isActive={isLive} />
+            </div>
+          </div>
+        </div>
+
+        <div className={`p-6 rounded-3xl text-center space-y-2 border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            How it works
+          </p>
+          <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>
+            Speak naturally. The AI detects the language and interprets it into the other language instantly. 
+            Both people can hear the translation through the speakers.
+          </p>
+        </div>
       </div>
     </div>
   );

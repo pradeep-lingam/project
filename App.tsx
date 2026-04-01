@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
 import { TranslatorView } from './views/TranslatorView';
+import { LiveInterpreterView } from './views/LiveInterpreterView';
 
 const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [activeTab, setActiveTab] = useState<'translator' | 'live'>('translator');
 
   return (
     <div className={`flex flex-col h-full relative overflow-hidden transition-colors duration-500 ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
@@ -27,30 +29,86 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Theme Toggle Button */}
-        <button 
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className={`p-2.5 rounded-xl transition-all duration-300 border flex items-center gap-2 group ${isDarkMode ? 'bg-slate-800 border-white/20 text-yellow-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'}`}
-          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        >
-          {isDarkMode ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 16.243l.707.707M7.757 7.757l.707.707M12 7a5 5 0 100 10 5 5 0 000-10z" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
-        </button>
+        <div className="flex items-center gap-6">
+          {/* Tab Navigation */}
+          <nav className={`hidden md:flex items-center p-1 rounded-2xl border transition-all duration-500 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'}`}>
+            <button 
+              onClick={() => setActiveTab('translator')}
+              className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeTab === 'translator' 
+                ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white text-indigo-600 shadow-sm') 
+                : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')
+              }`}
+            >
+              Translator
+            </button>
+            <button 
+              onClick={() => setActiveTab('live')}
+              className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                activeTab === 'live' 
+                ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white text-indigo-600 shadow-sm') 
+                : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')
+              }`}
+            >
+              Live Interpreter
+            </button>
+          </nav>
+
+          {/* Theme Toggle Button */}
+          <button 
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className={`p-2.5 rounded-xl transition-all duration-300 border flex items-center gap-2 group ${isDarkMode ? 'bg-slate-800 border-white/20 text-yellow-400 hover:bg-slate-700' : 'bg-white border-slate-200 text-indigo-600 hover:bg-slate-50'}`}
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 16.243l.707.707M7.757 7.757l.707.707M12 7a5 5 0 100 10 5 5 0 000-10z" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Content Area */}
       <main className="flex-1 overflow-hidden relative z-20">
         <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
-          <TranslatorView isDarkMode={isDarkMode} />
+          {activeTab === 'translator' ? (
+            <TranslatorView isDarkMode={isDarkMode} />
+          ) : (
+            <LiveInterpreterView isDarkMode={isDarkMode} />
+          )}
         </div>
       </main>
+
+      {/* Mobile Tab Navigation */}
+      <div className={`md:hidden shrink-0 px-6 py-4 border-t backdrop-blur-md z-30 transition-all duration-500 ${isDarkMode ? 'bg-slate-900/80 border-white/10' : 'bg-white/70 border-slate-200/60'}`}>
+        <div className={`flex items-center p-1 rounded-2xl border transition-all duration-500 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'}`}>
+          <button 
+            onClick={() => setActiveTab('translator')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'translator' 
+              ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white text-indigo-600 shadow-sm') 
+              : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')
+            }`}
+          >
+            Translator
+          </button>
+          <button 
+            onClick={() => setActiveTab('live')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'live' 
+              ? (isDarkMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-white text-indigo-600 shadow-sm') 
+              : (isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')
+            }`}
+          >
+            Live Interpreter
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
